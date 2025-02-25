@@ -6,10 +6,6 @@ from time import time
 from flask import Flask, jsonify
 from threading import Thread
 
-# In-memory storage for users and banned users
-users = {}  # Format: {user_id: {"first_name": "John", "downloads": 0}}
-banned_users = set()  # Set of banned user IDs
-
 # Bot Connection
 bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
 print(f"@{bot.get_me().username} Connected")
@@ -20,7 +16,7 @@ app = Flask(__name__)
 # Fetch User Member or Not
 def is_member(user_id):
     try:
-        member_status = bot.get_chat_member('-1002086815735', user_id)
+        member_status = bot.get_chat_member('-1002276367128', user_id)
         return member_status.status in ['member', 'administrator', 'creator']
     except:
         return False
@@ -105,10 +101,6 @@ def send_welcome(message):
 
     bot.send_chat_action(message.chat.id, 'typing')
 
-    # Store User in Memory
-    if user.id not in users:
-        users[user.id] = {"first_name": user.first_name, "downloads": 0}
-
     inline_keyboard = telebot.types.InlineKeyboardMarkup()
     inline_keyboard.row(
         telebot.types.InlineKeyboardButton("〇 𝐉𝐨𝐢𝐧𝐞 𝐂𝐡𝐚𝐧𝐧𝐞𝐥 〇", url=f"https://t.me/Opleech_WD"),
@@ -131,107 +123,6 @@ def send_welcome(message):
         reply_markup=inline_keyboard
     )
 
-# Ban command
-@bot.message_handler(commands=['ban'])
-def ban_user(message):
-    bot.send_chat_action(message.chat.id, 'typing')
-    if str(message.from_user.id) != os.getenv('OWNER_ID'):
-        bot.reply_to(message, "ʏᴏᴜ ᴀʀᴇ ɴᴏᴛ ᴀᴜᴛʜᴏʀɪꜱᴇᴅ ᴛᴏ ᴜꜱᴇ ᴛʜɪꜱ ᴄᴏᴍᴍᴀɴᴅ")
-        return
-
-    if len(message.text.split()) < 2:
-        bot.reply_to(message, "ᴘʟᴇᴀꜱᴇ ꜱᴘᴇᴄɪꜰʏ ᴀ ᴜꜱᴇʀ ᴛᴏ ʙᴀɴ.")
-        return
-
-    user_id_to_ban = int(message.text.split()[1])
-
-    if user_id_to_ban in banned_users:
-        bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_ban}</code> ɪꜱ ᴀʟʀᴇᴀᴅʏ ʙᴀɴɴᴇᴅ.", parse_mode='HTML')
-        return
-
-    banned_users.add(user_id_to_ban)
-    bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_ban}</code> ʜᴀꜱ ʙᴇᴇɴ ʙᴀɴɴᴇᴅ.", parse_mode='HTML')
-
-# Unban command
-@bot.message_handler(commands=['unban'])
-def unban_user(message):
-    bot.send_chat_action(message.chat.id, 'typing')
-    if str(message.from_user.id) != os.getenv('OWNER_ID'):
-        bot.reply_to(message, "ʏᴏᴜ ᴀʀᴇ ɴᴏᴛ ᴀᴜᴛʜᴏʀɪꜱᴇᴅ ᴛᴏ ᴜꜱᴇ ᴛʜɪꜱ ᴄᴏᴍᴍᴀɴᴅ")
-        return
-
-    if len(message.text.split()) < 2:
-        bot.reply_to(message, "ᴘʟᴇᴀꜱᴇ ꜱᴘᴇᴄɪꜰʏ ᴀ ᴜꜱᴇʀ �ᴛᴏ ᴜɴʙᴀɴ.")
-        return
-
-    user_id_to_unban = int(message.text.split()[1])
-
-    if user_id_to_unban not in banned_users:
-        bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_unban}</code> ɪꜱ ɴᴏᴛ ᴄᴜʀʀᴇɴᴛʟʏ ʙᴀɴɴᴇᴅ.", parse_mode='HTML')
-        return
-
-    banned_users.remove(user_id_to_unban)
-    bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_unban}</code> ʜᴀꜱ ʙᴇᴇɴ ᴜɴʙᴀɴɴᴇᴅ.", parse_mode='HTML')
-
-# Broadcast
-@bot.message_handler(commands=['broadcast'])
-def broadcast_message(message):
-    bot.send_chat_action(message.chat.id, 'typing')
-    if str(message.from_user.id) != os.getenv('OWNER_ID'):
-        bot.reply_to(message, "You are not authorized to use this command.")
-        return
-    bot.reply_to(message, 'ᴘʀᴏᴠɪᴅᴇ ᴀ ᴍᴇꜱꜱᴀɢᴇ / ᴍᴇᴅɪᴀ ᴛᴏ ʙʀᴏᴀᴅᴄᴀꜱᴛ', reply_markup=telebot.types.ForceReply(selective=True))
-    bot.register_next_step_handler(message, process_broadcast_message)
-
-def process_broadcast_message(message):
-    user_id = message.from_user.id
-    chat_id = message.chat.id
-    total_users = len(users) - 1
-    successful_users = 0
-    blocked_users = 0
-    deleted_accounts = 0
-    unsuccessful_users = 0
-
-    # Send the message to all users
-    for broadcast_user_id in users.keys():
-        if broadcast_user_id != user_id:
-            try:
-                if message.photo:
-                    photo_id = message.photo.pop().file_id
-                    caption = message.caption or ''
-                    bot.send_photo(broadcast_user_id, photo_id, caption=caption, parse_mode='html')
-                    successful_users += 1
-                elif message.video:
-                    video_id = message.video.file_id
-                    caption = message.caption or ''
-                    bot.send_video(broadcast_user_id, video_id, caption=caption, parse_mode='html')
-                    successful_users += 1
-                elif message.text:
-                    text = message.text
-                    bot.send_message(broadcast_user_id, text, parse_mode='html')
-                    successful_users += 1
-            except telebot.apihelper.ApiException as e:
-                if e.error_code == 403:  # Forbidden (likely user blocked the bot)
-                    blocked_users += 1
-                elif e.error_code == 400 and 'user not found' in str(e):  # User not found (likely deleted account)
-                    deleted_accounts += 1
-                    del users[broadcast_user_id]
-                else:
-                    unsuccessful_users += 1
-                    print(f"Error sending message to user {broadcast_user_id}: {e}")
-
-    unsuccessful_users = total_users - successful_users - blocked_users - deleted_accounts
-    bot.send_message(
-        chat_id,
-        f"""✅ ʙʀᴏᴀᴅᴄᴀꜱᴛ ᴄᴏᴍᴘʟᴇᴛᴇᴅ.\n
-ᴛᴏᴛᴀʟ ᴜꜱᴇʀꜱ: <code>{total_users}</code>
-ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟ: <code>{successful_users}</code>
-ʙʟᴏᴄᴋᴇᴅ ᴜꜱᴇʀꜱ: <code>{blocked_users}</code>
-ᴅᴇʟᴇᴛᴇᴅ ᴀᴄᴄᴏᴜɴᴛꜱ: <code>{deleted_accounts}</code>
-ᴜɴꜱᴜᴄᴄᴇꜱꜱꜰᴜʟ: <code>{unsuccessful_users}</code>""",
-        parse_mode='HTML'
-    )
-
 # Handle messages
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -242,11 +133,6 @@ def handle_message(message):
         return
 
     bot.send_chat_action(message.chat.id, 'typing')
-
-    # Check if user is banned
-    if user.id in banned_users:
-        bot.send_message(message.chat.id, "You are banned from using this bot.")
-        return
 
     # Check User Member or Not
     if not is_member(user.id):
@@ -276,7 +162,6 @@ def handle_message(message):
             bot.copy_message(chat_id, os.getenv('DUMP_CHAT_ID'), dump_channel_video.message_id)
 
             bot.send_sticker(chat_id, "CAACAgIAAxkBAAEM0yZm6Xz0hczRb-S5YkRIck7cjvQyNQACCh0AAsGoIEkIjTf-YvDReDYE")
-            users[user.id]["downloads"] += 1  # Update download count
             bot.delete_message(chat_id, progress_msg.message_id)
             bot.delete_message(chat_id, message.message_id)
             os.remove(video_path)
@@ -297,4 +182,14 @@ def health_check():
 
 if __name__ == "__main__":
     # Start Flask app in a separate thread
-   
+    def run_flask():
+        app.run(host='0.0.0.0', port=8000)
+
+    flask_thread = Thread(target=run_flask)
+    flask_thread.start()
+
+    # Start polling for Telegram updates
+    try:
+        bot.polling(none_stop=True)
+    except Exception as e:
+        print(f"Error in bot polling: {str(e)}")
