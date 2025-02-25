@@ -20,7 +20,7 @@ app = Flask(__name__)
 # Fetch User Member or Not
 def is_member(user_id):
     try:
-        member_status = bot.get_chat_member('-1002086815735', user_id)
+        member_status = bot.get_chat_member('-1002276367128', user_id)
         return member_status.status in ['member', 'administrator', 'creator']
     except:
         return False
