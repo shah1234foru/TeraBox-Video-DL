@@ -2,33 +2,49 @@ import os
 import re
 import requests
 import telebot
-from time import time
+from time import time, sleep
 from flask import Flask, jsonify
 from threading import Thread
 import pymongo
+from datetime import datetime, timedelta
 
-# DB Connetion
-mongo_client = pymongo.MongoClient(os.getenv('MONGO_URI'))
+# DB Connection
+mongo_client = pymongo.MongoClient(os.getenv('mongodb+srv://ankitpatni95:ankitpatni95@cluster0.jberr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'))
 db = mongo_client['powerful_web_scraping_tool_bot']
 users_collection = db['users']
 banned_users_collection = db['banned_users']
 print('DB Connected')
 
-# Bot Connetion
-bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
+# Bot Connection
+bot = telebot.TeleBot(os.getenv('7768586833:AAEretkMaBan5T1Lu-oJhRW7AuBFpC_1g50'))
 print(f"@{bot.get_me().username} Connected")
 print("\n╭─── [ LOG ]")
 app = Flask(__name__)
 
+# Channel ID
+CHANNEL_ID = '-1002363544218'  # Replace with your channel ID
+
+# Dictionary to store invite links and their expiration times
+invite_links = {}
 
 # Functions
 # Fetch User Member or Not
 def is_member(user_id):
     try:
-        member_status = bot.get_chat_member('-1002086815735', user_id)
+        member_status = bot.get_chat_member(CHANNEL_ID, user_id)
         return member_status.status in ['member', 'administrator', 'creator']
     except:
         return False
+
+# Function to generate an invite link
+def generate_invite_link():
+    expire_date = datetime.now() + timedelta(minutes=5)
+    invite_link = bot.create_chat_invite_link(CHANNEL_ID, expire_date.timestamp(), member_limit=1)
+    return invite_link.invite_link
+
+# Function to delete an invite link
+def delete_invite_link(invite_link):
+    bot.delete_chat_invite_link(CHANNEL_ID, invite_link)
 
 # Function to format the progress bar
 def format_progress_bar(filename, percentage, done, total_size, status, speed, user_mention, user_id):
@@ -103,8 +119,6 @@ def download_video(url, chat_id, message_id, user_mention, user_id):
 
     return video_path, video_title, total_length
 
-
-
 # Start command
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -122,8 +136,7 @@ def send_welcome(message):
 
     inline_keyboard = telebot.types.InlineKeyboardMarkup()
     inline_keyboard.row(
-        telebot.types.InlineKeyboardButton("〇 𝐉𝐨𝐢𝐧𝐞 𝐂𝐡𝐚𝐧𝐧𝐞𝐥 〇", url=f"https://t.me/Opleech_WD"),
-        telebot.types.InlineKeyboardButton("🫧 𝐎𝐡 𝐁𝐡𝐚𝐢 🫧", url="tg://user?id=6743860398")
+        telebot.types.InlineKeyboardButton("🫧 Naruto 🫧", url="https://telegram.me/Naruto_Owner_bot")
     )
 
     welcome_message = (
@@ -136,117 +149,11 @@ def send_welcome(message):
     # Send the welcome photo first
     bot.send_photo(
         message.chat.id,
-        photo="https://graph.org/file/4e8a1172e8ba4b7a0bdfa.jpg",
+        photo="https://envs.sh/tJZ.jpg",
         caption=welcome_message,
         parse_mode='HTML',
         reply_markup=inline_keyboard
     )
-
-# Ban command
-@bot.message_handler(commands=['ban'])
-def ban_user(message):
-    bot.send_chat_action(message.chat.id, 'typing')
-    if str(message.from_user.id) != os.getenv('OWNER_ID'):
-        bot.reply_to(message, "ʏᴏᴜ ᴀʀᴇ ɴᴏᴛ ᴀᴜᴛʜᴏʀɪꜱᴇᴅ ᴛᴏ ᴜꜱᴇ ᴛʜɪꜱ ᴄᴏᴍᴍᴀɴᴅ")
-        return
-
-    if len(message.text.split()) < 2:
-        bot.reply_to(message, "ᴘʟᴇᴀꜱᴇ ꜱᴘᴇᴄɪꜰʏ ᴀ ᴜꜱᴇʀ ᴛᴏ ʙᴀɴ.")
-        return
-
-    user_id_to_ban = int(message.text.split()[1])
-
-    if banned_users_collection.find_one({'user_id': user_id_to_ban}):
-        bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_ban}</code> ɪꜱ ᴀʟʀᴇᴀᴅʏ ʙᴀɴɴᴇᴅ.", parse_mode='HTML')
-        return
-
-    banned_users_collection.insert_one({'user_id': user_id_to_ban})
-    bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_ban}</code> ʜᴀꜱ ʙᴇᴇɴ ʙᴀɴɴᴇᴅ.", parse_mode='HTML')
-
-# Unban command
-@bot.message_handler(commands=['unban'])
-def unban_user(message):
-    bot.send_chat_action(message.chat.id, 'typing')
-    if str(message.from_user.id) != os.getenv('OWNER_ID'):
-        bot.reply_to(message, "ʏᴏᴜ ᴀʀᴇ ɴᴏᴛ ᴀᴜᴛʜᴏʀɪꜱᴇᴅ ᴛᴏ ᴜꜱᴇ ᴛʜɪꜱ ᴄᴏᴍᴍᴀɴᴅ")
-        return
-
-    if len(message.text.split()) < 2:
-        bot.reply_to(message, "ᴘʟᴇᴀꜱᴇ ꜱᴘᴇᴄɪꜰʏ ᴀ ᴜꜱᴇʀ ᴛᴏ ᴜɴʙᴀɴ.")
-        return
-
-    user_id_to_unban = int(message.text.split()[1])
-
-    if not banned_users_collection.find_one({'user_id': user_id_to_unban}):
-        bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_unban}</code> ɪꜱ ɴᴏᴛ ᴄᴜʀʀᴇɴᴛʟʏ ʙᴀɴɴᴇᴅ.", parse_mode='HTML')
-        return
-
-    banned_users_collection.delete_one({'user_id': user_id_to_unban})
-    bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_unban}</code> ʜᴀꜱ ʙᴇᴇɴ ᴜɴʙᴀɴɴᴇᴅ.", parse_mode='HTML')
-
-# Broadcast
-@bot.message_handler(commands=['broadcast'])
-def broadcast_message(message):
-    bot.send_chat_action(message.chat.id, 'typing')
-    if str(message.from_user.id) != os.getenv('OWNER_ID'):
-        bot.reply_to(message, "You are not authorized to use this command.")
-        return
-    bot.reply_to(message, 'ᴘʀᴏᴠɪᴅᴇ ᴀ ᴍᴇꜱꜱᴀɢᴇ / ᴍᴇᴅɪᴀ ᴛᴏ ʙʀᴏᴀᴅᴄᴀꜱᴛ', reply_markup=telebot.types.ForceReply(selective=True))
-    bot.register_next_step_handler(message, process_broadcast_message)
-
-def process_broadcast_message(message):
-    user_id = message.from_user.id
-    chat_id = message.chat.id
-    total_users = len(get_user_ids()) - 1
-    successful_users = 0
-    blocked_users = 0
-    deleted_accounts = 0
-    unsuccessful_users = 0
-
-    # Send the message to all users
-    for broadcast_user_id in get_user_ids():
-        if broadcast_user_id != user_id:
-            try:
-                if message.photo:
-                    photo_id = message.photo.pop().file_id
-                    caption = message.caption or ''
-                    bot.send_photo(broadcast_user_id, photo_id, caption=caption, parse_mode='html')
-                    successful_users += 1
-                elif message.video:
-                    video_id = message.video.file_id
-                    caption = message.caption or ''
-                    bot.send_video(broadcast_user_id, video_id, caption=caption, parse_mode='html')
-                    successful_users += 1
-                elif message.text:
-                    text = message.text
-                    bot.send_message(broadcast_user_id, text, parse_mode='html')
-                    successful_users += 1
-            except telebot.apihelper.ApiException as e:
-                if e.error_code == 403:  # Forbidden (likely user blocked the bot)
-                    blocked_users += 1
-                elif e.error_code == 400 and 'user not found' in str(e):  # User not found (likely deleted account)
-                    deleted_accounts += 1
-                    users_collection.delete_one({'user_id': broadcast_user_id})
-                else:
-                    unsuccessful_users += 1
-                    print(f"Error sending message to user {broadcast_user_id}: {e}")
-
-    unsuccessful_users = total_users - successful_users - blocked_users - deleted_accounts
-    bot.send_message(
-        chat_id,
-        f"""✅ ʙʀᴏᴀᴅᴄᴀꜱᴛ ᴄᴏᴍᴘʟᴇᴛᴇᴅ.\n
-ᴛᴏᴛᴀʟ ᴜꜱᴇʀꜱ: <code>{total_users}</code>
-ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟ: <code>{successful_users}</code>
-ʙʟᴏᴄᴋᴇᴅ ᴜꜱᴇʀꜱ: <code>{blocked_users}</code>
-ᴅᴇʟᴇᴛᴇᴅ ᴀᴄᴄᴏᴜɴᴛꜱ: <code>{deleted_accounts}</code>
-ᴜɴꜱᴜᴄᴄᴇꜱꜱꜰᴜʟ: <code>{unsuccessful_users}</code>""",
-        parse_mode='HTML'
-    )
-# Get User IDs
-def get_user_ids():
-    # Get user IDs from your database
-    user_ids = [user['user_id'] for user in users_collection.find()]
-    return user_ids
 
 # Handle messages
 @bot.message_handler(func=lambda message: True)
@@ -259,7 +166,6 @@ def handle_message(message):
 
     bot.send_chat_action(message.chat.id, 'typing')
 
-
     # Check if user is banned
     if banned_users_collection.find_one({'user_id': user.id}):
         bot.send_message(message.chat.id, "You are banned from using this bot.")
@@ -267,15 +173,29 @@ def handle_message(message):
 
     # Check User Member or Not
     if not is_member(user.id):
+        # Generate a new invite link
+        invite_link = generate_invite_link()
+        invite_links[user.id] = invite_link
+
+        # Send the invite link to the user
         bot.send_message(
             message.chat.id,
             "ʏᴏᴜ ᴍᴜsᴛ ᴊᴏɪɴ ᴍʏ ᴄʜᴀɴɴᴇʟ ᴛᴏ ᴜsᴇ ᴍᴇ.",
             reply_markup=telebot.types.InlineKeyboardMarkup().add(
-                telebot.types.InlineKeyboardButton("〇 𝐉𝐨𝐢𝐧𝐞 𝐂𝐡𝐚𝐧𝐧𝐞𝐥 〇", url=f"https://t.me/Opleech_WD")
+                telebot.types.InlineKeyboardButton("〇 𝐉𝐨𝐢𝐧𝐞 𝐂𝐡𝐚𝐧𝐧𝐞𝐥 〇", url=invite_link)
             )
         )
+
+        # Schedule the deletion of the invite link after 5 minutes
+        def delete_link_after_5_minutes(user_id, invite_link):
+            sleep(300)  # 5 minutes
+            if user_id in invite_links:
+                delete_invite_link(invite_link)
+                del invite_links[user_id]
+
+        Thread(target=delete_link_after_5_minutes, args=(user.id, invite_link)).start()
         return
-        
+
     video_url = message.text
     chat_id = message.chat.id
     user_mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
@@ -287,12 +207,10 @@ def handle_message(message):
             video_path, video_title, video_size = download_video(video_url, chat_id, progress_msg.message_id, user_mention, user_id)
             bot.edit_message_text('sᴇɴᴅɪɴɢ ʏᴏᴜ ᴛʜᴇ ᴍᴇᴅɪᴀ...🤤', chat_id, progress_msg.message_id)
 
-
             video_size_mb = video_size / (1024 * 1024)
 
             dump_channel_video = bot.send_video(os.getenv('DUMP_CHAT_ID'), open(video_path, 'rb'), caption=f"📂 {video_title}\n📦 {video_size_mb:.2f} MB\n🪪 𝐔𝐬𝐞𝐫 𝐁𝐲 : {user_mention}\n♂️ 𝐔𝐬𝐞𝐫 𝐋𝐢𝐧𝐤: tg://user?id={user_id}", parse_mode='HTML')
             bot.copy_message(chat_id, os.getenv('DUMP_CHAT_ID'), dump_channel_video.message_id)
-
 
             bot.send_sticker(chat_id, "CAACAgIAAxkBAAEM0yZm6Xz0hczRb-S5YkRIck7cjvQyNQACCh0AAsGoIEkIjTf-YvDReDYE")
             users_collection.update_one(
@@ -331,4 +249,3 @@ if __name__ == "__main__":
         bot.polling(none_stop=True)
     except Exception as e:
         print(f"Error in bot polling: {str(e)}")
-# @SudoR2spr by - WOODcraft
