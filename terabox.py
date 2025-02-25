@@ -5,21 +5,16 @@ import telebot
 from time import time
 from flask import Flask, jsonify
 from threading import Thread
-import pymongo
 
-# DB Connetion
-mongo_client = pymongo.MongoClient(os.getenv('MONGO_URI'))
-db = mongo_client['powerful_web_scraping_tool_bot']
-users_collection = db['users']
-banned_users_collection = db['banned_users']
-print('DB Connected')
+# In-memory storage for users and banned users
+users = {}  # Format: {user_id: {"first_name": "John", "downloads": 0}}
+banned_users = set()  # Set of banned user IDs
 
-# Bot Connetion
+# Bot Connection
 bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
 print(f"@{bot.get_me().username} Connected")
 print("\n╭─── [ LOG ]")
 app = Flask(__name__)
-
 
 # Functions
 # Fetch User Member or Not
@@ -103,8 +98,6 @@ def download_video(url, chat_id, message_id, user_mention, user_id):
 
     return video_path, video_title, total_length
 
-
-
 # Start command
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -112,13 +105,9 @@ def send_welcome(message):
 
     bot.send_chat_action(message.chat.id, 'typing')
 
-    # Store User To DB
-    if not users_collection.find_one({'user_id': user.id}):
-        users_collection.insert_one({
-            'user_id': user.id,
-            'first_name': user.first_name,
-            'downloads': 0
-        })
+    # Store User in Memory
+    if user.id not in users:
+        users[user.id] = {"first_name": user.first_name, "downloads": 0}
 
     inline_keyboard = telebot.types.InlineKeyboardMarkup()
     inline_keyboard.row(
@@ -156,11 +145,11 @@ def ban_user(message):
 
     user_id_to_ban = int(message.text.split()[1])
 
-    if banned_users_collection.find_one({'user_id': user_id_to_ban}):
+    if user_id_to_ban in banned_users:
         bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_ban}</code> ɪꜱ ᴀʟʀᴇᴀᴅʏ ʙᴀɴɴᴇᴅ.", parse_mode='HTML')
         return
 
-    banned_users_collection.insert_one({'user_id': user_id_to_ban})
+    banned_users.add(user_id_to_ban)
     bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_ban}</code> ʜᴀꜱ ʙᴇᴇɴ ʙᴀɴɴᴇᴅ.", parse_mode='HTML')
 
 # Unban command
@@ -177,11 +166,11 @@ def unban_user(message):
 
     user_id_to_unban = int(message.text.split()[1])
 
-    if not banned_users_collection.find_one({'user_id': user_id_to_unban}):
+    if user_id_to_unban not in banned_users:
         bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_unban}</code> ɪꜱ ɴᴏᴛ ᴄᴜʀʀᴇɴᴛʟʏ ʙᴀɴɴᴇᴅ.", parse_mode='HTML')
         return
 
-    banned_users_collection.delete_one({'user_id': user_id_to_unban})
+    banned_users.remove(user_id_to_unban)
     bot.reply_to(message, f"ᴛʜɪꜱ ᴜꜱᴇʀ <code>{user_id_to_unban}</code> ʜᴀꜱ ʙᴇᴇɴ ᴜɴʙᴀɴɴᴇᴅ.", parse_mode='HTML')
 
 # Broadcast
@@ -197,14 +186,14 @@ def broadcast_message(message):
 def process_broadcast_message(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
-    total_users = len(get_user_ids()) - 1
+    total_users = len(users) - 1
     successful_users = 0
     blocked_users = 0
     deleted_accounts = 0
     unsuccessful_users = 0
 
     # Send the message to all users
-    for broadcast_user_id in get_user_ids():
+    for broadcast_user_id in users.keys():
         if broadcast_user_id != user_id:
             try:
                 if message.photo:
@@ -226,7 +215,7 @@ def process_broadcast_message(message):
                     blocked_users += 1
                 elif e.error_code == 400 and 'user not found' in str(e):  # User not found (likely deleted account)
                     deleted_accounts += 1
-                    users_collection.delete_one({'user_id': broadcast_user_id})
+                    del users[broadcast_user_id]
                 else:
                     unsuccessful_users += 1
                     print(f"Error sending message to user {broadcast_user_id}: {e}")
@@ -242,11 +231,6 @@ def process_broadcast_message(message):
 ᴜɴꜱᴜᴄᴄᴇꜱꜱꜰᴜʟ: <code>{unsuccessful_users}</code>""",
         parse_mode='HTML'
     )
-# Get User IDs
-def get_user_ids():
-    # Get user IDs from your database
-    user_ids = [user['user_id'] for user in users_collection.find()]
-    return user_ids
 
 # Handle messages
 @bot.message_handler(func=lambda message: True)
@@ -259,9 +243,8 @@ def handle_message(message):
 
     bot.send_chat_action(message.chat.id, 'typing')
 
-
     # Check if user is banned
-    if banned_users_collection.find_one({'user_id': user.id}):
+    if user.id in banned_users:
         bot.send_message(message.chat.id, "You are banned from using this bot.")
         return
 
@@ -287,19 +270,13 @@ def handle_message(message):
             video_path, video_title, video_size = download_video(video_url, chat_id, progress_msg.message_id, user_mention, user_id)
             bot.edit_message_text('sᴇɴᴅɪɴɢ ʏᴏᴜ ᴛʜᴇ ᴍᴇᴅɪᴀ...🤤', chat_id, progress_msg.message_id)
 
-
             video_size_mb = video_size / (1024 * 1024)
 
             dump_channel_video = bot.send_video(os.getenv('DUMP_CHAT_ID'), open(video_path, 'rb'), caption=f"📂 {video_title}\n📦 {video_size_mb:.2f} MB\n🪪 𝐔𝐬𝐞𝐫 𝐁𝐲 : {user_mention}\n♂️ 𝐔𝐬𝐞𝐫 𝐋𝐢𝐧𝐤: tg://user?id={user_id}", parse_mode='HTML')
             bot.copy_message(chat_id, os.getenv('DUMP_CHAT_ID'), dump_channel_video.message_id)
 
-
             bot.send_sticker(chat_id, "CAACAgIAAxkBAAEM0yZm6Xz0hczRb-S5YkRIck7cjvQyNQACCh0AAsGoIEkIjTf-YvDReDYE")
-            users_collection.update_one(
-                {'user_id': user.id},
-                {'$inc': {'downloads': 1}},
-                upsert=True
-            )
+            users[user.id]["downloads"] += 1  # Update download count
             bot.delete_message(chat_id, progress_msg.message_id)
             bot.delete_message(chat_id, message.message_id)
             os.remove(video_path)
@@ -323,12 +300,4 @@ if __name__ == "__main__":
     def run_flask():
         app.run(host='0.0.0.0', port=8000)
 
-    flask_thread = Thread(target=run_flask)
-    flask_thread.start()
-
-    # Start polling for Telegram updates
-    try:
-        bot.polling(none_stop=True)
-    except Exception as e:
-        print(f"Error in bot polling: {str(e)}")
-# @SudoR2spr by - WOODcraft
+    flask_thread
