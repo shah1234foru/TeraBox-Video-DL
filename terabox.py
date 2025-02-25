@@ -20,7 +20,7 @@ app = Flask(__name__)
 # Fetch User Member or Not
 def is_member(user_id):
     try:
-        member_status = bot.get_chat_member('-1002276367128', user_id)
+        member_status = bot.get_chat_member('-1002086815735', user_id)
         return member_status.status in ['member', 'administrator', 'creator']
     except:
         return False
@@ -161,7 +161,7 @@ def unban_user(message):
         return
 
     if len(message.text.split()) < 2:
-        bot.reply_to(message, "ᴘʟᴇᴀꜱᴇ ꜱᴘᴇᴄɪꜰʏ ᴀ ᴜꜱᴇʀ ᴛᴏ ᴜɴʙᴀɴ.")
+        bot.reply_to(message, "ᴘʟᴇᴀꜱᴇ ꜱᴘᴇᴄɪꜰʏ ᴀ ᴜꜱᴇʀ �ᴛᴏ ᴜɴʙᴀɴ.")
         return
 
     user_id_to_unban = int(message.text.split()[1])
@@ -297,7 +297,4 @@ def health_check():
 
 if __name__ == "__main__":
     # Start Flask app in a separate thread
-    def run_flask():
-        app.run(host='0.0.0.0', port=8000)
-
-    flask_thread
+   
