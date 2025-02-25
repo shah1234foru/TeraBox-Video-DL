@@ -9,16 +9,21 @@ import pymongo
 from datetime import datetime, timedelta
 
 # DB Connection
-mongo_client = pymongo.MongoClient(os.getenv('mongodb+srv://ankitpatni95:ankitpatni95@cluster0.jberr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'))
-db = mongo_client['powerful_web_scraping_tool_bot']
-users_collection = db['users']
-banned_users_collection = db['banned_users']
-print('DB Connected')
+try:
+    mongo_client = pymongo.MongoClient(os.getenv('MONGODB_URI'))
+    db = mongo_client['powerful_web_scraping_tool_bot']
+    users_collection = db['users']
+    banned_users_collection = db['banned_users']
+    print('DB Connected')
+except Exception as e:
+    print(f"Error connecting to MongoDB: {str(e)}")
 
 # Bot Connection
 bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
 print(f"@{bot.get_me().username} Connected")
 print("\n╭─── [ LOG ]")
+
+# Flask App
 app = Flask(__name__)
 
 # Channel ID
@@ -28,7 +33,6 @@ CHANNEL_ID = '-1002363544218'  # Replace with your channel ID
 invite_links = {}
 
 # Functions
-# Fetch User Member or Not
 def is_member(user_id):
     try:
         member_status = bot.get_chat_member(CHANNEL_ID, user_id)
@@ -36,17 +40,14 @@ def is_member(user_id):
     except:
         return False
 
-# Function to generate an invite link
 def generate_invite_link():
     expire_date = datetime.now() + timedelta(minutes=5)
     invite_link = bot.create_chat_invite_link(CHANNEL_ID, expire_date.timestamp(), member_limit=1)
     return invite_link.invite_link
 
-# Function to delete an invite link
 def delete_invite_link(invite_link):
     bot.delete_chat_invite_link(CHANNEL_ID, invite_link)
 
-# Function to format the progress bar
 def format_progress_bar(filename, percentage, done, total_size, status, speed, user_mention, user_id):
     bar_length = 10
     filled_length = int(bar_length * percentage / 100)
@@ -72,7 +73,6 @@ def format_progress_bar(filename, percentage, done, total_size, status, speed, u
         f"┖ 𝐔𝐬𝐞𝐫: {user_mention} | ɪᴅ: <code>{user_id}</code>"
     )
 
-# Function to download video
 def download_video(url, chat_id, message_id, user_mention, user_id):
     response = requests.get(f'https://teraboxvideodownloader.nepcoderdevs.workers.dev/?url={url}')
     data = response.json()
@@ -84,6 +84,9 @@ def download_video(url, chat_id, message_id, user_mention, user_id):
     fast_download_link = resolutions['Fast Download']
     video_title = re.sub(r'[<>:"/\\|?*]+', '', data['response'][0]['title'])
     video_path = os.path.join('Videos', f"{video_title}.mp4")
+
+    if not os.path.exists('Videos'):
+        os.makedirs('Videos')
 
     with open(video_path, 'wb') as video_file:
         video_response = requests.get(fast_download_link, stream=True)
@@ -238,10 +241,7 @@ def health_check():
 
 if __name__ == "__main__":
     # Start Flask app in a separate thread
-    def run_flask():
-        app.run(host='0.0.0.0', port=8000)
-
-    flask_thread = Thread(target=run_flask)
+    flask_thread = Thread(target=app.run, kwargs={'host': '0.0.0.0', 'port': int(os.getenv('PORT', 8000))})
     flask_thread.start()
 
     # Start polling for Telegram updates
