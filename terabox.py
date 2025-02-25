@@ -16,7 +16,7 @@ banned_users_collection = db['banned_users']
 print('DB Connected')
 
 # Bot Connection
-bot = telebot.TeleBot(os.getenv('7768586833:AAEretkMaBan5T1Lu-oJhRW7AuBFpC_1g50'))
+bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
 print(f"@{bot.get_me().username} Connected")
 print("\n╭─── [ LOG ]")
 app = Flask(__name__)
